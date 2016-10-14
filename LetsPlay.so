@@ -1,0 +1,22 @@
+contract letsPlay {
+    address user1;
+    address user2;
+    string public _assetName;
+    uint public _uniqueId;
+    uint public _startTime;
+    uint public endTime;
+    uint public totalAmount;
+    uint public amount;
+    mapping (address => uint256) public beneficiary;
+    event gotDeposit(address player, uint startTime);
+    
+    function takeDeposit (address player ,uint amount, uint startTime, uint endTime, string assetName, uint uniqueId){
+        
+        beneficiary[player] = amount;
+        _startTime = startTime;
+        _assetName = assetName;
+        _uniqueId = uniqueId;
+        
+        gotDeposit(player, _startTime);
+    }
+}
