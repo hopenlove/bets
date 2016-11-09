@@ -6,8 +6,9 @@ contract letsPlayV7{
     uint public betAmount;
     uint public recordId;
     uint public temp_recordId;
+    address companyAcct = 0x332e416a62fcc4cd8115244314462052055e43b3;
     
-    // Allowed withdrawals of previous bids
+    // Allowed withdrawals of previous bids, "1", "1477987301", "1478073701"
     mapping(address => uint) pendingReturns;
     
     struct BetInfo{
@@ -41,6 +42,10 @@ contract letsPlayV7{
     }
     
     event gotDeposit(address player, uint startTime);
+    
+    event Transfer(address _from, address _to, uint256 value);
+
+
 
     function takeDeposit (
         string _bettorName,
@@ -58,6 +63,7 @@ contract letsPlayV7{
        BetInfo memory betDetails;
        Player memory player;
        Player memory challenger;
+       bool tranferSuccessful;
        if (_uniqueId == 0){ //New bet requested
            recordId = recordId + 1;
            betDetails.uniqueId = recordId;
@@ -83,20 +89,28 @@ contract letsPlayV7{
                challenger = myBet.player2;
                challenger.playerName = _bettorName;
                challenger.playerEmail = _bettorEmail;
+               challenger.assetName = _assetName;
+               //challenger.bettor = false;
                challenger.acctNo =msg.sender;
                bets[_uniqueId]= BetRecord(betDetails, player, challenger);
                }else{
                throw;
            }
         }
+        //msg.sender..send(companyAcct);
+        Transfer(msg.sender,companyAcct, msg.value);
+        //companyAcct.call.value(msg.value);
+        //tranferSuccessful = msg.sender.send(msg.value);
         gotDeposit(msg.sender, _startTime);
     }
     
     
-    function withdraw(uint _uniqueId) returns (bool) {
-        
+    function withdraw(uint _uniqueId) payable 
+    returns (bool) 
+    {
          //TODO: Delete bet record based on account
         uint betAmount =0;
+        address transfer_to;
         string memory assetName= "";
         BetInfo memory betDetails;
         Player memory player;
@@ -110,9 +124,12 @@ contract letsPlayV7{
                 throw;
             }
         
+        transfer_to=msg.sender;
+        
         if (player.acctNo == msg.sender){
             betAmount = betDetails.depositAmount;
             assetName = player.assetName;
+            
         }
         
         if (challenger.acctNo == msg.sender){
@@ -123,16 +140,18 @@ contract letsPlayV7{
         //var amount = pendingReturns[msg.sender];
         
         if (betAmount > 0) {
-        // It is important to set this to zero because the recipient
-        // can call this function again as part of the receiving call
-        // before `send` returns.
-        pendingReturns[msg.sender] = 0;
-        if (!msg.sender.send(betAmount)) {
-        // No need to call throw here, just reset the amount owing
-        pendingReturns[msg.sender] = betAmount;
-        return false;
+            // It is important to set this to zero because the recipient
+            // can call this function again as part of the receiving call
+            // before `send` returns.
+            pendingReturns[msg.sender] = 0;
+            if (!msg.sender.send(betAmount)) {
+            // No need to call throw here, just reset the amount owing
+            pendingReturns[msg.sender] = betAmount;
+            return false;
+            }
         }
-     }
+        Transfer(companyAcct, transfer_to, betAmount);
+        return true;
     }
     
     function showBetRecordsFor (uint _recordId)
