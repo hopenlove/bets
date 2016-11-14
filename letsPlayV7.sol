@@ -6,10 +6,22 @@ contract letsPlayV7{
     uint public betAmount;
     uint public recordId;
     uint public temp_recordId;
-    address companyAcct = 0x332e416a62fcc4cd8115244314462052055e43b3;
+    uint public betValue;
+    
+    enum State { Created, Locked, Inactive }
+    State public state;
+    
+    address public companyAcct = 0x332e416a62fcc4cd8115244314462052055e43b3;
     
     // Allowed withdrawals of previous bids, "1", "1477987301", "1478073701"
     mapping(address => uint) pendingReturns;
+    mapping (address => mapping(uint =>uint)) private balances;
+    
+    event gotDeposit(address player, uint startTime);
+    
+    modifier onlyBefore(uint _time) { if (now >= _time) throw; _; }
+    modifier onlyAfter(uint _time) { if (now <= _time) throw; _; }
+
     
     struct BetInfo{
         uint uniqueId;
@@ -41,9 +53,6 @@ contract letsPlayV7{
         recordId =0;
     }
     
-    event gotDeposit(address player, uint startTime);
-    
-    event Transfer(address _from, address _to, uint256 value);
 
 
 
@@ -56,6 +65,7 @@ contract letsPlayV7{
         uint _endTime
         //, uint _depositAmount
         )
+        onlyBefore    (_endTime)
         payable
     {
        //uint betNumber;
@@ -66,6 +76,7 @@ contract letsPlayV7{
        bool tranferSuccessful;
        if (_uniqueId == 0){ //New bet requested
            recordId = recordId + 1;
+           _uniqueId = recordId;
            betDetails.uniqueId = recordId;
            betDetails.startTime = _startTime;
            betDetails.endTime = _endTime;
@@ -97,11 +108,21 @@ contract letsPlayV7{
                throw;
            }
         }
+        
         //msg.sender..send(companyAcct);
-        Transfer(msg.sender,companyAcct, msg.value);
+        //Transfer(msg.sender,companyAcct, msg.value);
         //companyAcct.call.value(msg.value);
         //tranferSuccessful = msg.sender.send(msg.value);
-        gotDeposit(msg.sender, _startTime);
+        if (companyAcct.send(msg.value)){
+            balances[msg.sender][_uniqueId] = msg.value;
+            gotDeposit(msg.sender, _startTime);
+        }
+    }
+    
+    function balance(address _for, uint _uniqueId)  constant returns (uint) {
+        uint _betValue = balances[_for][_uniqueId];
+        betValue=_betValue;
+        return _betValue;
     }
     
     
@@ -137,9 +158,9 @@ contract letsPlayV7{
             assetName = challenger.assetName;
         }
         
-        //var amount = pendingReturns[msg.sender];
+        var amount =balances[msg.sender][_uniqueId];
         
-        if (betAmount > 0) {
+        if (betAmount > 0 && betAmount == amount) {
             // It is important to set this to zero because the recipient
             // can call this function again as part of the receiving call
             // before `send` returns.
@@ -150,7 +171,7 @@ contract letsPlayV7{
             return false;
             }
         }
-        Transfer(companyAcct, transfer_to, betAmount);
+        //Transfer(companyAcct, transfer_to, betAmount);
         return true;
     }
     
