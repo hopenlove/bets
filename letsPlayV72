@@ -1,0 +1,198 @@
+pragma solidity ^0.4.1;
+contract letsPlayV7{
+    
+    string public playerName;
+    string public challengerName;
+    uint public betAmount;
+    uint public recordId;
+    uint public temp_recordId;
+    uint public betValue;
+    uint public balanceAmt;
+    
+    enum State { Created, Locked, Inactive }
+    State public state;
+    
+    address public companyAcct;// = 0x332e416a62fcc4cd8115244314462052055e43b3;
+    
+    // Allowed withdrawals of previous bids, "1", "1477987301", "1478073701"
+    mapping(address => uint) pendingReturns;
+    mapping (address => mapping(uint =>uint)) private balances;
+    
+    event gotDeposit(address player, uint startTime);
+    
+    modifier onlyBefore(uint _time) { if (now >= _time) throw; _; }
+    modifier onlyAfter(uint _time) { if (now <= _time) throw; _; }
+
+    struct BetInfo{
+        uint uniqueId;
+        uint startTime;
+        uint endTime;
+        uint depositAmount;
+        //address challenger;
+    }
+    struct Player{
+        string playerName;
+        string playerEmail;
+        string assetName;
+        uint uniqueId;
+        bool bettor;
+        address acctNo;
+        //mapping(uint =>Bet) bets; 
+        //Bets [] public bets;
+    }
+    
+    struct BetRecord{
+         BetInfo betDetails;
+         Player player1;
+         Player player2;
+    }
+    
+    mapping  (uint => BetRecord)  bets;
+    
+    function letsPlayV7 (){
+        recordId =0;
+    }
+
+    function takeDeposit (
+        string _bettorName,
+        string _bettorEmail,
+        string _assetName,
+        uint _uniqueId,
+        uint _startTime,
+        uint _endTime
+        //, uint _depositAmount
+        )
+        onlyBefore    (_endTime)
+        payable
+    {
+       //uint betNumber;
+       //recordId = _uniqueId;
+       BetInfo memory betDetails;
+       Player memory player;
+       Player memory challenger;
+       bool tranferSuccessful;
+       if (_uniqueId == 0){ //New bet requested
+           recordId = recordId + 1;
+           _uniqueId = recordId;
+           betDetails.uniqueId = recordId;
+           betDetails.startTime = _startTime;
+           betDetails.endTime = _endTime;
+           betDetails.depositAmount = msg.value; //_depositAmount;
+           player.playerName = _bettorName;
+           player.playerEmail = _bettorEmail;
+           player.assetName = _assetName;
+           player.bettor = true;
+           player.acctNo =msg.sender;
+           challenger.bettor = false;
+           bets[recordId]= BetRecord(betDetails, player, challenger);
+       }else{
+           // Update challenger details
+           BetRecord myBet = bets[_uniqueId];
+           betDetails = myBet.betDetails;
+           player = myBet.player1;
+           if (player.acctNo != msg.sender && 
+               betDetails.depositAmount == msg.value 
+               //&& pendingReturns[msg.sender] ==0 // No pending refunds 
+               )         {   
+               challenger = myBet.player2;
+               challenger.playerName = _bettorName;
+               challenger.playerEmail = _bettorEmail;
+               challenger.assetName = _assetName;
+               //challenger.bettor = false;
+               challenger.acctNo =msg.sender;
+               bets[_uniqueId]= BetRecord(betDetails, player, challenger);
+               }else{
+               throw;
+           }
+        }
+        
+        //msg.sender..send(companyAcct);
+        //Transfer(msg.sender,companyAcct, msg.value);
+        //companyAcct.call.value(msg.value);
+        //tranferSuccessful = msg.sender.send(msg.value);
+        if (companyAcct.send(msg.value)){
+            balances[msg.sender][_uniqueId] = msg.value;
+            gotDeposit(msg.sender, _startTime);
+        }
+    }
+    
+    function getBalance(address _acctID) constant returns (uint) {
+        uint _betValue = _acctID.balance;
+        balanceAmt = _betValue;
+        return _betValue;
+    }
+    
+    function registerCompanyAcct(address _compAddress){
+        companyAcct = _compAddress;
+    }
+    
+    function withdraw(uint _uniqueId)  
+    returns (bool) 
+    {
+         //TODO: Delete bet record based on account
+        uint withDrawAmount =0;
+        address transfer_to;
+        string memory assetName= "";
+        BetInfo memory betDetails;
+        Player memory player;
+        Player memory challenger;
+        BetRecord myBet = bets[_uniqueId];
+           betDetails = myBet.betDetails;
+           player = myBet.player1;
+           challenger =myBet.player2;
+        
+        if (player.acctNo != msg.sender && challenger.acctNo !=msg.sender  ){   
+                throw;
+            }
+        
+        transfer_to=msg.sender;
+        
+        if (player.acctNo == msg.sender){
+            withDrawAmount = betDetails.depositAmount;
+            assetName = player.assetName;
+        }
+        
+        if (challenger.acctNo == msg.sender){
+            withDrawAmount = betDetails.depositAmount;
+            assetName = challenger.assetName;
+        }
+        
+        var amount =balances[msg.sender][_uniqueId];
+        
+        if (withDrawAmount > 0 && withDrawAmount == amount) {
+            // It is important to set this to zero because the recipient
+            // can call this function again as part of the receiving call
+            // before `send` returns.
+            pendingReturns[msg.sender] = 0;
+            if (!msg.sender.send(withDrawAmount)) {
+            // No need to call throw here, just reset the amount owing
+            pendingReturns[msg.sender] = withDrawAmount;
+            return false;
+            }
+        }
+        //Transfer(companyAcct, transfer_to, betAmount);
+        return true;
+    }
+    
+    function showBetRecordsFor (uint _recordId)
+    returns (bool _status) 
+    {
+       BetInfo memory betDetails;
+       Player memory player;
+       Player memory challenger;
+       BetRecord myBet = bets[_recordId];
+       betDetails = myBet.betDetails;
+       player = myBet.player1;
+       playerName = player.playerName;
+       if (_recordId >0)
+       {
+       challenger = myBet.player2;
+       //challengerName = challenger.playerName;
+       }
+       temp_recordId=_recordId;
+       betAmount = betDetails.depositAmount;
+       return true;
+    }
+    
+    
+}
